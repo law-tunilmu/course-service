@@ -9,6 +9,7 @@ from app import schemas
 from app.exceptions import CourseException, course_exception_handler, invalid_request_handler
 from app.validators import validate_course
 from app.dependencies import supa, supa_async, CloudinaryUpload, get_current_utc
+from app.authorization import authorize, User, USER_ROLES
 
 app = FastAPI()
 
@@ -34,7 +35,7 @@ COURSE_SORT_KEYS = ["id", "title", "creator", "price"]
 SELECT_COLUMNS = ", ".join(schemas.Course.model_fields.keys())
 
 @app.get("/course/list")
-async def list_courses(page: int = 0, page_size : int = 5, order_by : str = None, is_descending: bool = False,
+async def list_courses(page: int = 0, page_size : int = 5, order_by : str = "id", is_descending: bool = False,
                        supa_client: AsyncClient=Depends(supa_async)) -> list[schemas.Course]:
     try:
         query = supa_client.table(COURSE_TABLE_NAME).select(SELECT_COLUMNS)
@@ -87,13 +88,21 @@ async def search_courses(query: str, page: int = 0, page_size: int = 5,
 
 @app.post("/course/create")
 def create_course(  course: schemas.CourseCreate,
+                    user: User = Depends(authorize),
                     supa_client: supabase.Client=Depends(supa),
                     cl_client: CloudinaryUpload=Depends(CloudinaryUpload)
                  ) -> schemas.Course:
     
+    if user.role != USER_ROLES.MENTOR.value:
+        raise CourseException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            description="Authorization error: student can not create a course"
+        )
+
     validate_course(course)
     courseInDB = course.model_dump(exclude=set(["picture"]))
-    
+    courseInDB["creator"] = user.username
+
     picture_url = ""
     if course.picture:
         picture_url = cl_client.upload(course.picture)
@@ -112,7 +121,8 @@ def create_course(  course: schemas.CourseCreate,
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 @app.put("/course/edit")
-def edit_course(  course: schemas.CourseEdit,
+def edit_course(    course: schemas.CourseEdit,
+                    user: User = Depends(authorize),
                     supa_client: supabase.Client=Depends(supa),
                     cl_client: CloudinaryUpload=Depends(CloudinaryUpload)
                  ) -> schemas.Course:
@@ -127,8 +137,9 @@ def edit_course(  course: schemas.CourseEdit,
     courseInDB['last_update_at'] = get_current_utc()
 
     try:
-        result = supa_client.table(COURSE_TABLE_NAME) \
-                    .update(courseInDB).eq("id", course.id).execute()
+        result = supa_client.table(COURSE_TABLE_NAME).update(courseInDB) \
+                    .eq("id", course.id).eq("creator", user.username) \
+                    .execute()
         if len(result.data) == 0:
             raise CourseException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -140,12 +151,13 @@ def edit_course(  course: schemas.CourseEdit,
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @app.delete("/course/delete")
-def delete_course( id: int, supa_client: supabase.Client=Depends(supa), 
+def delete_course( id: int, user: User = Depends(authorize), 
+                    supa_client: supabase.Client=Depends(supa), 
                     cl_client: CloudinaryUpload=Depends(CloudinaryUpload)
                 ) -> schemas.Course :
     try:
         result = supa_client.table(COURSE_TABLE_NAME) \
-                    .delete().eq("id", id).execute()
+                    .delete().eq("id", id).eq("creator", user.username).execute()
 
         if len(result.data) == 0:
             raise CourseException(

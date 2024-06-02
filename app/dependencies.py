@@ -16,7 +16,9 @@ async def supa_async() -> AsyncClient:
     )
     if not os.environ.get('PRODUCTION', False):
         supa_client.rest_url = os.environ['SUPABASE_URL']
-        supa_client.options = ClientOptions(schema='law')
+        
+        schema = os.environ.get("SUPABSE_SCHEMA", "public")
+        supa_client.options = ClientOptions(schema=schema)
 
     return supa_client
 
@@ -28,7 +30,9 @@ def supa() -> Client:
     )
     if not os.environ.get('PRODUCTION', False):
         supa_client.rest_url = os.environ['SUPABASE_URL']
-        supa_client.options = ClientOptions(schema='law')
+        
+        schema = os.environ.get("SUPABSE_SCHEMA", "public")
+        supa_client.options = ClientOptions(schema=schema)
 
     return supa_client
 

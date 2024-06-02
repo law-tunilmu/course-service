@@ -4,7 +4,6 @@ from pydantic import BaseModel
 class CourseBase(BaseModel):
     title: str
     description: Optional[str]
-    creator: str
     price: float
 
 class CourseCreate(CourseBase):
@@ -22,6 +21,7 @@ class CourseEdit(CourseBase):
 
 class Course(CourseBase):
     id: int
+    creator: str
     picture_url: str
     created_at: str
     last_update_at: str
