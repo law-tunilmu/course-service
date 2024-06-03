@@ -6,10 +6,9 @@ from fastapi.exceptions import RequestValidationError
 from supabase.client import AsyncClient
 
 from app import schemas
-from app.exceptions import CourseException, course_exception_handler, invalid_request_handler
+from app.exceptions import invalid_request_handler
 from app.validators import validate_course
 from app.dependencies import supa, supa_async, CloudinaryUpload, get_current_utc
-from app.authorization import authorize, User, USER_ROLES
 
 app = FastAPI()
 
@@ -21,10 +20,6 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-app.add_exception_handler(
-    CourseException,
-    handler=course_exception_handler
-)
 app.add_exception_handler(
     RequestValidationError,
     handler=invalid_request_handler
@@ -39,7 +34,6 @@ async def list_courses(page: int = 0, page_size : int = 5, order_by : str = "id"
                        supa_client: AsyncClient=Depends(supa_async)) -> list[schemas.Course]:
     try:
         query = supa_client.table(COURSE_TABLE_NAME).select(SELECT_COLUMNS)
-
         if order_by and order_by.lower() in COURSE_SORT_KEYS:
             query = query.order(column=order_by, desc=is_descending)
         result = await query.limit(page_size).offset(page * page_size).execute()
@@ -54,9 +48,9 @@ async def get_course(course_id: int, supa_client: AsyncClient=Depends(supa_async
                         .eq("id", course_id).maybe_single().execute()
         
         if not result:
-            raise CourseException(
+            raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    description="Item is not found"
+                    detail="Item is not found"
                 )
 
         return result.data
@@ -88,20 +82,11 @@ async def search_courses(query: str, page: int = 0, page_size: int = 5,
 
 @app.post("/course/create")
 def create_course(  course: schemas.CourseCreate,
-                    user: User = Depends(authorize),
                     supa_client: supabase.Client=Depends(supa),
                     cl_client: CloudinaryUpload=Depends(CloudinaryUpload)
                  ) -> schemas.Course:
-    
-    if user.role != USER_ROLES.MENTOR.value:
-        raise CourseException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            description="Authorization error: student can not create a course"
-        )
-
     validate_course(course)
     courseInDB = course.model_dump(exclude=set(["picture"]))
-    courseInDB["creator"] = user.username
 
     picture_url = ""
     if course.picture:
@@ -122,7 +107,6 @@ def create_course(  course: schemas.CourseCreate,
     
 @app.put("/course/edit")
 def edit_course(    course: schemas.CourseEdit,
-                    user: User = Depends(authorize),
                     supa_client: supabase.Client=Depends(supa),
                     cl_client: CloudinaryUpload=Depends(CloudinaryUpload)
                  ) -> schemas.Course:
@@ -138,32 +122,19 @@ def edit_course(    course: schemas.CourseEdit,
 
     try:
         result = supa_client.table(COURSE_TABLE_NAME).update(courseInDB) \
-                    .eq("id", course.id).eq("creator", user.username) \
-                    .execute()
-        if len(result.data) == 0:
-            raise CourseException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    description="Item to be updated is not found"
-                )
+                    .eq("id", course.id).execute()
 
         return result.data[0]
     except supabase.PostgrestAPIError:
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @app.delete("/course/delete")
-def delete_course( id: int, user: User = Depends(authorize), 
-                    supa_client: supabase.Client=Depends(supa), 
+def delete_course( id: int, supa_client: supabase.Client=Depends(supa), 
                     cl_client: CloudinaryUpload=Depends(CloudinaryUpload)
                 ) -> schemas.Course :
     try:
         result = supa_client.table(COURSE_TABLE_NAME) \
-                    .delete().eq("id", id).eq("creator", user.username).execute()
-
-        if len(result.data) == 0:
-            raise CourseException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    description="Item to be removed is not found"
-                )
+                    .delete().eq("id", id).execute()
 
         course_deleted = result.data[0]
 

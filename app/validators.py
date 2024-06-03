@@ -1,10 +1,8 @@
-import sys
 import base64
 import binascii
-from fastapi import status
+from fastapi import status, HTTPException
 
 from .schemas import CourseCreate 
-from .exceptions import CourseException
 
 PICTURE_SIZE=5 # in mb
 
@@ -12,9 +10,9 @@ PICTURE_SIZE=5 # in mb
 def validate_course(course: CourseCreate) -> None:
     
     if course.price < 0:
-        raise CourseException(
+        raise HTTPException(
             status_code = status.HTTP_422_UNPROCESSABLE_ENTITY,
-            description = "Price field must NOT be negative"
+            detail = "Price field must NOT be negative"
         )
         
     if course.picture:
@@ -23,13 +21,13 @@ def validate_course(course: CourseCreate) -> None:
             picture_byte: bytes = base64.b64decode(bodyImage)
 
             if len(picture_byte) * 8 > PICTURE_SIZE * 1_000_000:
-                raise CourseException(
+                raise HTTPException(
                     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    description = f"Picture must be less than {PICTURE_SIZE}mb"
+                    detail = f"Picture must be less than {PICTURE_SIZE}mb"
                 )
             
         except binascii.Error:
-            raise CourseException(
+            raise HTTPException(
                 status_code = status.HTTP_422_UNPROCESSABLE_ENTITY,
                 description = "Picture field must be encoded as a base64"
             )

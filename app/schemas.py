@@ -8,6 +8,7 @@ class CourseBase(BaseModel):
 
 class CourseCreate(CourseBase):
     picture: str    # base64 encoded
+    creator: str
 
     class Config:
         from_attributes = True
@@ -21,8 +22,8 @@ class CourseEdit(CourseBase):
 
 class Course(CourseBase):
     id: int
-    creator: str
     picture_url: str
+    creator: str
     created_at: str
     last_update_at: str
 

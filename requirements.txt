@@ -4,3 +4,4 @@ supabase
 python-dotenv
 cloudinary
 PyJWT
+asgi-correlation-id

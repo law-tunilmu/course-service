@@ -14,10 +14,10 @@ async def supa_async() -> AsyncClient:
         os.environ['SUPABASE_URL'],
         os.environ['SUPABASE_KEY']
     )
-    if not os.environ.get('PRODUCTION', False):
+    if os.environ.get('PRODUCTION', "False").lower() == "false":
         supa_client.rest_url = os.environ['SUPABASE_URL']
         
-        schema = os.environ.get("SUPABSE_SCHEMA", "public")
+        schema = os.environ.get("SUPABASE_SCHEMA", "law")
         supa_client.options = ClientOptions(schema=schema)
 
     return supa_client
@@ -28,10 +28,10 @@ def supa() -> Client:
         os.environ['SUPABASE_URL'],
         os.environ['SUPABASE_KEY']
     )
-    if not os.environ.get('PRODUCTION', False):
+    if os.environ.get('PRODUCTION', "False").lower() == "false":
         supa_client.rest_url = os.environ['SUPABASE_URL']
         
-        schema = os.environ.get("SUPABSE_SCHEMA", "public")
+        schema = os.environ.get("SUPABASE_SCHEMA", "public")
         supa_client.options = ClientOptions(schema=schema)
 
     return supa_client
